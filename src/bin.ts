@@ -36,35 +36,34 @@ function isSelfOrSubdirectory(parent: string, child: string): boolean {
 }
 
 function getScriptPath(): string | undefined {
-	if (argv.length === 0) {
-		const {npm_command, npm_lifecycle_event, npm_package_json} = process.env;
-		if (npm_command && npm_lifecycle_event && npm_package_json && fs.existsSync(npm_package_json)) {
-			const json = JSON.parse(fs.readFileSync(npm_package_json).toString());
-			const configPath = json?.tsm?.path;
-			if (configPath) {
-				console.log(process.cwd(), configPath);
-				if (!isSelfOrSubdirectory(process.cwd(), configPath)) {
-					console.warn("[tsm] configPath outside working directory, exiting. ");
-					throw process.exit(1);
-				}
+	if (argv.length === 0) return undefined;
+	const {npm_command, npm_lifecycle_event, npm_package_json} = process.env;
+	if (npm_command && npm_lifecycle_event && npm_package_json && fs.existsSync(npm_package_json)) {
+		let json: any;
+		try {
+			json = JSON.parse(fs.readFileSync(npm_package_json).toString());
+		} catch (e) {}
 
-				const suffixes = ['ts', 'js'];
-				const prefixes = ['', 'm', 'c'];
-				for (const suffix of suffixes) {
-					for (const prefix of prefixes) {
-						const pathname = path.join(path.dirname(npm_package_json), configPath, npm_lifecycle_event + `.${prefix}${suffix}`);
-						console.log(pathname);
-						if (fs.existsSync(pathname)) {
-							return pathname;
-						}
-					}
-				}
+		const configPath = json && json?.tsm?.path;
+		if (!configPath) return undefined;
+		if (!isSelfOrSubdirectory(process.cwd(), configPath)) {
+			console.warn("[tsm] configPath outside working directory, exiting. ");
+			throw process.exit(1);
+		}
+
+		const suffixes = ['ts', 'js'];
+		const prefixes = ['', 'm', 'c'];
+		for (const suffix of suffixes) {
+			for (const prefix of prefixes) {
+				const filename = npm_lifecycle_event + `.${prefix}${suffix}`;
+				const pathname = path.join(path.dirname(npm_package_json), configPath, filename);
+				if (fs.existsSync(pathname)) return pathname;
 			}
 		}
 	}
 }
 
-const scriptPath = getScriptPath()
+const scriptPath = getScriptPath();
 
 let { URL, pathToFileURL } = require('url') as typeof import('url');
 if (scriptPath) argv = [...argv, scriptPath];
