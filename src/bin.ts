@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
 let argv = process.argv.slice(2);
 
 // note: injected @ build
@@ -27,6 +29,45 @@ if (argv.includes('-v') || argv.includes('--version')) {
 	process.exit(0);
 }
 
+function isSelfOrSubdirectory(parent: string, child: string): boolean {
+	if (path.resolve(parent) === path.resolve(child)) return true;
+  const relative = path.relative(parent, child);
+  return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function getScriptPath(): string | undefined {
+	if (argv.length === 0) {
+		const {npm_command, npm_lifecycle_event, npm_package_json} = process.env;
+		if (npm_command && npm_lifecycle_event && npm_package_json && fs.existsSync(npm_package_json)) {
+			const json = JSON.parse(fs.readFileSync(npm_package_json).toString());
+			const configPath = json?.tsm?.path;
+			if (configPath) {
+				console.log(process.cwd(), configPath);
+				if (!isSelfOrSubdirectory(process.cwd(), configPath)) {
+					console.warn("[tsm] configPath outside working directory, exiting. ");
+					throw process.exit(1);
+				}
+
+				const suffixes = ['ts', 'js'];
+				const prefixes = ['', 'm', 'c'];
+				for (const suffix of suffixes) {
+					for (const prefix of prefixes) {
+						const pathname = path.join(path.dirname(npm_package_json), configPath, npm_lifecycle_event + `.${prefix}${suffix}`);
+						console.log(pathname);
+						if (fs.existsSync(pathname)) {
+							return pathname;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+const scriptPath = getScriptPath()
+
 let { URL, pathToFileURL } = require('url') as typeof import('url');
+if (scriptPath) argv = [...argv, scriptPath];
 argv = ['--enable-source-maps', '--loader', new URL('loader.mjs', pathToFileURL(__filename)).href, ...argv];
+console.log('argv', argv);
 require('child_process').spawn('node', argv, { stdio: 'inherit' }).on('exit', process.exit);
