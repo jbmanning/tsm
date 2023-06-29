@@ -1,5 +1,5 @@
 {
-  "name": "tsm",
+  "name": "@jman.dev/tsm",
   "version": "2.3.0",
   "repository": "lukeed/tsm",
   "description": "TypeScript Module Loader",
